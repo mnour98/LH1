@@ -1,2 +1,18 @@
-# LH1
-LH1 – First prototype of the Sales &amp; Marketing system. Focuses on the quotation module with automatic calculation of Country, Province, Taxes, and Total.
+# LH1 – Sales & Marketing System (Prototype)
+
+This is the first prototype (LH1) of the Sales & Marketing system.
+It focuses on the quotation module.
+
+Features:
+- Country and Province selection
+- Automatic tax calculation
+- Automatic subtotal and total calculation
+
+Tech stack:
+- HTML
+- CSS
+- JavaScript
+
+Deployment:
+- Vercel
+
