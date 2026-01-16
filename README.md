@@ -9,9 +9,10 @@ Features:
 - Automatic subtotal and total calculation
 
 Tech stack:
-- HTML
-- CSS
+- React
 - JavaScript
+- CSS
+
 
 Deployment:
 - Vercel
