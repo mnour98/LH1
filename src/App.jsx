@@ -1,250 +1,422 @@
-// src/App.jsx
-import { useMemo, useRef, useState } from "react";
+import { useMemo, useState } from "react";
 import "./App.css";
+import logo from "./assets/laboratoire_hibalogique_inc_logo.jpg";
 
-const TAX_RATES = {
+/**
+ * Simple tax rates (you can adjust later if Hiba wants different logic)
+ * - QC: GST 5% + QST 9.975% = 14.975%
+ * - ON: HST 13%
+ * - BC: GST 5% + PST 7% = 12%
+ * - AB: GST 5%
+ */
+const TAX_RATES_BY_PROVINCE = {
   QC: 0.14975,
   ON: 0.13,
+  BC: 0.12,
+  AB: 0.05,
+  MB: 0.12,
+  SK: 0.11,
+  NS: 0.15,
+  NB: 0.15,
+  NL: 0.15,
+  PE: 0.15,
+  NT: 0.05,
+  NU: 0.05,
+  YT: 0.05,
 };
 
-function money(n) {
-  const x = Number(n || 0);
-  return x.toLocaleString(undefined, { style: "currency", currency: "CAD" });
+const PROVINCES = [
+  { code: "QC", name: "Quebec" },
+  { code: "ON", name: "Ontario" },
+  { code: "BC", name: "British Columbia" },
+  { code: "AB", name: "Alberta" },
+  { code: "MB", name: "Manitoba" },
+  { code: "SK", name: "Saskatchewan" },
+  { code: "NS", name: "Nova Scotia" },
+  { code: "NB", name: "New Brunswick" },
+  { code: "NL", name: "Newfoundland and Labrador" },
+  { code: "PE", name: "Prince Edward Island" },
+  { code: "NT", name: "Northwest Territories" },
+  { code: "NU", name: "Nunavut" },
+  { code: "YT", name: "Yukon" },
+];
+
+const makeId = () =>
+  globalThis.crypto?.randomUUID?.() ??
+  `id_${Date.now()}_${Math.random().toString(16).slice(2)}`;
+
+const emptyLine = () => ({
+  id: makeId(),
+  typeOfTest: "",
+  description: "",
+  panel: "",
+  timeDays: "",
+  pricePerUnit: "",
+  numSamples: "",
+});
+
+function formatMoney(value) {
+  const n = Number(value);
+  if (!Number.isFinite(n)) return "—";
+  return n.toLocaleString("en-CA", { style: "currency", currency: "CAD" });
+}
+
+function toNumber(value) {
+  const n = Number(value);
+  return Number.isFinite(n) ? n : 0;
 }
 
 export default function App() {
-  const [country, setCountry] = useState("Canada");
-  const [province, setProvince] = useState("QC");
+  const [quote, setQuote] = useState({
+    referenceNumber: "Quote 0001-26",
+    date: new Date().toISOString().slice(0, 10),
+    validTill: "",
+    sponsor: "",
+    address: "",
+    phone: "",
+    email: "",
+    contactInformation: "",
+    country: "Canada",
+    province: "QC",
+    discountPercent: 0,
+  });
 
-  const [rows, setRows] = useState([
-    { id: crypto.randomUUID(), desc: "", qty: 1, unit: 0 },
-  ]);
+  const [lines, setLines] = useState([emptyLine()]);
 
-  const step3Ref = useRef(null);
-
-  const rate = TAX_RATES[province] ?? 0;
+  const taxRate = useMemo(() => {
+    if (quote.country !== "Canada") return 0; // simple default: only auto-tax for Canada
+    return TAX_RATES_BY_PROVINCE[quote.province] ?? 0;
+  }, [quote.country, quote.province]);
 
   const computed = useMemo(() => {
-    const safeRows = rows.map((r) => {
-      const qty = Math.max(0, Number(r.qty) || 0);
-      const unit = Math.max(0, Number(r.unit) || 0);
-      const sub = qty * unit;
-      const lineTotal = sub * (1 + rate);
-      return { ...r, qty, unit, sub, lineTotal };
+    const lineSubtotals = lines.map((l) => {
+      const price = toNumber(l.pricePerUnit);
+      const samples = toNumber(l.numSamples);
+      return price * samples;
     });
 
-    const subtotal = safeRows.reduce((sum, r) => sum + r.sub, 0);
-    const tax = subtotal * rate;
-    const total = subtotal + tax;
+    const subtotal = lineSubtotals.reduce((a, b) => a + b, 0);
 
-    return { safeRows, subtotal, tax, total };
-  }, [rows, rate]);
+    const discountPct = Math.max(
+      0,
+      Math.min(100, toNumber(quote.discountPercent))
+    );
+    const discountAmount = subtotal * (discountPct / 100);
+    const afterDiscount = Math.max(0, subtotal - discountAmount);
 
-  function addRow() {
-    setRows((prev) => [
-      ...prev,
-      { id: crypto.randomUUID(), desc: "", qty: 1, unit: 0 },
-    ]);
-  }
+    const taxes = afterDiscount * taxRate;
+    const total = afterDiscount + taxes;
 
-  function removeRow(id) {
-    setRows((prev) => prev.filter((r) => r.id !== id));
-  }
+    return {
+      lineSubtotals,
+      subtotal,
+      discountAmount,
+      afterDiscount,
+      taxes,
+      total,
+    };
+  }, [lines, quote.discountPercent, taxRate]);
 
-  function resetAll() {
-    setCountry("Canada");
-    setProvince("QC");
-    setRows([{ id: crypto.randomUUID(), desc: "", qty: 1, unit: 0 }]);
-  }
+  const updateQuote = (field, value) => {
+    setQuote((q) => ({ ...q, [field]: value }));
+  };
 
-  function scrollToStep3() {
-    step3Ref.current?.scrollIntoView({ behavior: "smooth", block: "start" });
-  }
+  const updateLine = (id, field, value) => {
+    setLines((prev) =>
+      prev.map((l) => (l.id === id ? { ...l, [field]: value } : l))
+    );
+  };
+
+  const addLine = () => setLines((prev) => [...prev, emptyLine()]);
+
+  const removeLine = (id) =>
+    setLines((prev) =>
+      prev.length === 1 ? prev : prev.filter((l) => l.id !== id)
+    );
 
   return (
     <div className="page">
-      {/* TOP BAR */}
       <header className="topbar">
-        <div className="brand" title="LH1">
-          <div className="brandMark" aria-hidden="true" />
-          <div>LH1</div>
+        <div className="brand">
+          <img src={logo} alt="Laboratoire Hibalogique" className="logo" />
+          <div>
+            <h1>Quotation</h1>
+            <p className="muted">LH1 — Quotation Prototype</p>
+          </div>
         </div>
 
-        <nav className="nav">
-          <button
-            className="navLink"
-            onClick={() => window.scrollTo({ top: 0, behavior: "smooth" })}
-          >
-            Home
-          </button>
-          <button className="navLink" onClick={scrollToStep3}>
-            Quotation
-          </button>
-          <button
-            className="navCta"
-            onClick={() => alert("Contact: add your email/phone here")}
-          >
-            Contact
-          </button>
-        </nav>
+        <div className="badge">
+          <div className="badgeLabel">Tax Rate</div>
+          <div className="badgeValue">{(taxRate * 100).toFixed(3)}%</div>
+        </div>
       </header>
 
-      {/* HERO */}
-      <section className="heroWrap">
-        <div className="hero">
-          <div>
-            <p className="heroKicker">Unlock clarity with scientific precision</p>
-            <h1>Quotation Prototype</h1>
-            <p className="heroText">
-              Generate accurate quotations with automatic calculations, tailored to
-              your province and tax rules. Add multiple items and export totals in seconds.
-            </p>
+      {/* HEADER / CLIENT INFO */}
+      <section className="card">
+        <div className="cardTitle">Header & Client Info</div>
 
-            <div className="heroActions">
-              <button className="btnPrimary" onClick={scrollToStep3}>
-                Create a quotation
-              </button>
-              <button className="btnGhost" onClick={resetAll}>
-                Reset all
-              </button>
-            </div>
-          </div>
+        <div className="grid3">
+          <label className="field">
+            <span>Reference Number</span>
+            <input
+              value={quote.referenceNumber}
+              onChange={(e) => updateQuote("referenceNumber", e.target.value)}
+              placeholder="Quote 0001-26"
+            />
+          </label>
 
-          {/* simple decorative card (keeps it lightweight) */}
-          <div className="heroVisual" aria-hidden="true" />
+          <label className="field">
+            <span>Date</span>
+            <input
+              type="date"
+              value={quote.date}
+              onChange={(e) => updateQuote("date", e.target.value)}
+            />
+          </label>
+
+          <label className="field">
+            <span>Quotation valid till</span>
+            <input
+              type="date"
+              value={quote.validTill}
+              onChange={(e) => updateQuote("validTill", e.target.value)}
+            />
+          </label>
+        </div>
+
+        <div className="grid2">
+          <label className="field">
+            <span>Sponsor</span>
+            <input
+              value={quote.sponsor}
+              onChange={(e) => updateQuote("sponsor", e.target.value)}
+              placeholder="Sponsor name"
+            />
+          </label>
+
+          <label className="field">
+            <span>Address</span>
+            <input
+              value={quote.address}
+              onChange={(e) => updateQuote("address", e.target.value)}
+              placeholder="Full address"
+            />
+          </label>
+        </div>
+
+        <div className="grid3">
+          <label className="field">
+            <span>Phone</span>
+            <input
+              value={quote.phone}
+              onChange={(e) => updateQuote("phone", e.target.value)}
+              placeholder="+1 (___) ___-____"
+            />
+          </label>
+
+          <label className="field">
+            <span>Email</span>
+            <input
+              value={quote.email}
+              onChange={(e) => updateQuote("email", e.target.value)}
+              placeholder="name@email.com"
+            />
+          </label>
+
+          <label className="field">
+            <span>Contact Information</span>
+            <input
+              value={quote.contactInformation}
+              onChange={(e) => updateQuote("contactInformation", e.target.value)}
+              placeholder="Contact person / notes"
+            />
+          </label>
+        </div>
+
+        <div className="grid3">
+          <label className="field">
+            <span>Country</span>
+            <select
+              value={quote.country}
+              onChange={(e) => updateQuote("country", e.target.value)}
+            >
+              <option value="Canada">Canada</option>
+              <option value="Other">Other</option>
+            </select>
+            <small className="hint">
+              If “Other”, taxes will be 0% (you can change later).
+            </small>
+          </label>
+
+          <label className="field">
+            <span>Province</span>
+            <select
+              value={quote.province}
+              onChange={(e) => updateQuote("province", e.target.value)}
+              disabled={quote.country !== "Canada"}
+              title={
+                quote.country !== "Canada"
+                  ? "Province disabled unless Country is Canada"
+                  : ""
+              }
+            >
+              {PROVINCES.map((p) => (
+                <option key={p.code} value={p.code}>
+                  {p.code} — {p.name}
+                </option>
+              ))}
+            </select>
+          </label>
+
+          <label className="field">
+            <span>Taxes (auto)</span>
+            <input value={`${(taxRate * 100).toFixed(3)}%`} readOnly />
+          </label>
         </div>
       </section>
 
-      {/* MAIN CARD */}
-      <div className="card">
-        {/* STEP 1 */}
-        <h2>Step 1</h2>
-        <label>Choose country:</label>
-        <select value={country} onChange={(e) => setCountry(e.target.value)}>
-          <option>Canada</option>
-        </select>
-        <p className="mutedLine">
-          <b>Selected country:</b> {country}
-        </p>
+      {/* LINE ITEMS */}
+      <section className="card">
+        <div className="rowBetween">
+          <div className="cardTitle">Line Items</div>
+          <button className="btn" onClick={addLine} type="button">
+            + Add line
+          </button>
+        </div>
 
-        <hr />
+        <div className="tableWrap">
+          <table className="table">
+            <thead>
+              <tr>
+                <th>Type of Test</th>
+                <th>Description</th>
+                <th>Panel</th>
+                <th className="num">Time (Days)</th>
+                <th className="num">Price per unit (CAD)</th>
+                <th className="num">Nr. of Samples</th>
+                <th className="num">Subtotal</th>
+                <th className="actions"> </th>
+              </tr>
+            </thead>
 
-        {/* STEP 2 */}
-        <h2>Step 2</h2>
-        <label>Choose province:</label>
-        <select value={province} onChange={(e) => setProvince(e.target.value)}>
-          <option value="QC">Quebec</option>
-          <option value="ON">Ontario</option>
-        </select>
-        <p className="mutedLine">
-          <b>Selected province:</b> {province}
-        </p>
+            <tbody>
+              {lines.map((l, idx) => (
+                <tr key={l.id}>
+                  <td>
+                    <input
+                      value={l.typeOfTest}
+                      onChange={(e) =>
+                        updateLine(l.id, "typeOfTest", e.target.value)
+                      }
+                      placeholder="e.g. Chemistry"
+                    />
+                  </td>
+                  <td>
+                    <input
+                      value={l.description}
+                      onChange={(e) =>
+                        updateLine(l.id, "description", e.target.value)
+                      }
+                      placeholder="e.g. Analysis details"
+                    />
+                  </td>
+                  <td>
+                    <input
+                      value={l.panel}
+                      onChange={(e) => updateLine(l.id, "panel", e.target.value)}
+                      placeholder="e.g. Standard"
+                    />
+                  </td>
+                  <td className="num">
+                    <input
+                      value={l.timeDays}
+                      onChange={(e) =>
+                        updateLine(l.id, "timeDays", e.target.value)
+                      }
+                      inputMode="numeric"
+                      placeholder="0"
+                    />
+                  </td>
+                  <td className="num">
+                    <input
+                      value={l.pricePerUnit}
+                      onChange={(e) =>
+                        updateLine(l.id, "pricePerUnit", e.target.value)
+                      }
+                      inputMode="decimal"
+                      placeholder="0"
+                    />
+                  </td>
+                  <td className="num">
+                    <input
+                      value={l.numSamples}
+                      onChange={(e) =>
+                        updateLine(l.id, "numSamples", e.target.value)
+                      }
+                      inputMode="numeric"
+                      placeholder="0"
+                    />
+                  </td>
+                  <td className="num strong">
+                    {formatMoney(computed.lineSubtotals[idx])}
+                  </td>
+                  <td className="actions">
+                    <button
+                      className="iconBtn"
+                      type="button"
+                      onClick={() => removeLine(l.id)}
+                    >
+                      Remove
+                    </button>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
 
-        <hr />
+        {/* TOTALS */}
+        <div className="totals">
+          <label className="field">
+            <span>Discount (%)</span>
+            <input
+              value={quote.discountPercent}
+              onChange={(e) => updateQuote("discountPercent", e.target.value)}
+              inputMode="decimal"
+              placeholder="0"
+            />
+          </label>
 
-        {/* STEP 3 */}
-        <div ref={step3Ref} />
-        <h2>Step 3</h2>
-        <p className="smallNote">
-          Quotation table (auto calculations). Last column ={" "}
-          <b>Line total (incl. tax)</b>.
-        </p>
-
-        <div className="table">
-          <div className="thead">
-            <div>Description</div>
-            <div>Qty</div>
-            <div>Unit price</div>
-            <div>Subtotal</div>
-            <div>Line total</div>
-            <div />
-          </div>
-
-          {computed.safeRows.map((r) => (
-            <div className="trow" key={r.id}>
-              <input
-                placeholder="Service / Product"
-                value={r.desc}
-                onChange={(e) =>
-                  setRows((prev) =>
-                    prev.map((x) =>
-                      x.id === r.id ? { ...x, desc: e.target.value } : x
-                    )
-                  )
-                }
-              />
-
-              <input
-                type="number"
-                min="0"
-                value={r.qty}
-                onChange={(e) =>
-                  setRows((prev) =>
-                    prev.map((x) =>
-                      x.id === r.id ? { ...x, qty: e.target.value } : x
-                    )
-                  )
-                }
-              />
-
-              <input
-                type="number"
-                min="0"
-                step="0.01"
-                value={r.unit}
-                onChange={(e) =>
-                  setRows((prev) =>
-                    prev.map((x) =>
-                      x.id === r.id ? { ...x, unit: e.target.value } : x
-                    )
-                  )
-                }
-              />
-
-              <div className="cellMoney">{money(r.sub)}</div>
-
-              <div className="cellTotal">
-                <div className="big">{money(r.lineTotal)}</div>
-                <div className="tiny">
-                  incl. tax ({(rate * 100).toFixed(3)}%)
-                </div>
-              </div>
-
-              <button
-                className="iconBtn"
-                title="Remove row"
-                onClick={() => removeRow(r.id)}
-                disabled={rows.length === 1}
-              >
-                ×
-              </button>
+          <div className="totalsBox">
+            <div className="totalRow">
+              <span>Subtotal</span>
+              <span>{formatMoney(computed.subtotal)}</span>
             </div>
-          ))}
-
-          <div className="summary">
-            <div />
-            <div className="sumGrid">
-              <div>Subtotal</div>
-              <div className="right">{money(computed.subtotal)}</div>
-
-              <div>Tax ({(rate * 100).toFixed(3)}%)</div>
-              <div className="right">{money(computed.tax)}</div>
-
-              <div className="sumTotalLabel">Total</div>
-              <div className="right sumTotalValue">{money(computed.total)}</div>
+            <div className="totalRow">
+              <span>Discount</span>
+              <span>- {formatMoney(computed.discountAmount)}</span>
+            </div>
+            <div className="totalRow">
+              <span>Subtotal after discount</span>
+              <span>{formatMoney(computed.afterDiscount)}</span>
+            </div>
+            <div className="totalRow">
+              <span>Taxes ({(taxRate * 100).toFixed(3)}%)</span>
+              <span>{formatMoney(computed.taxes)}</span>
+            </div>
+            <div className="totalRow grand">
+              <span>Total</span>
+              <span>{formatMoney(computed.total)}</span>
             </div>
           </div>
         </div>
+      </section>
 
-        <div className="actions">
-          <button className="btnGhost" onClick={addRow}>
-            + Add row
-          </button>
-          <button className="btnGhost" onClick={resetAll}>
-            Reset
-          </button>
-        </div>
-      </div>
+      <footer className="footer">
+        <span className="muted">
+          Tip: After edits run git add/commit/push — Vercel updates automatically.
+        </span>
+      </footer>
     </div>
   );
 }
