@@ -1,3 +1,4 @@
+<<<<<<< HEAD
 # React + Vite
 
 This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
@@ -14,3 +15,24 @@ The React Compiler is not enabled on this template because of its impact on dev 
 ## Expanding the ESLint configuration
 
 If you are developing a production application, we recommend using TypeScript with type-aware lint rules enabled. Check out the [TS template](https://github.com/vitejs/vite/tree/main/packages/create-vite/template-react-ts) for information on how to integrate TypeScript and [`typescript-eslint`](https://typescript-eslint.io) in your project.
+=======
+# LH1 – Sales & Marketing System (Prototype)
+
+This is the first prototype (LH1) of the Sales & Marketing system.
+It focuses on the quotation module.
+
+Features:
+- Country and Province selection
+- Automatic tax calculation
+- Automatic subtotal and total calculation
+
+Tech stack:
+- React
+- JavaScript
+- CSS
+
+
+Deployment:
+- Vercel
+
+>>>>>>> bb32e65b66604903078ce245558e5d3a853ae02f
