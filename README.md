@@ -1,4 +1,5 @@
 <<<<<<< HEAD
+<<<<<<< HEAD
 # React + Vite
 
 This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
@@ -17,22 +18,39 @@ The React Compiler is not enabled on this template because of its impact on dev 
 If you are developing a production application, we recommend using TypeScript with type-aware lint rules enabled. Check out the [TS template](https://github.com/vitejs/vite/tree/main/packages/create-vite/template-react-ts) for information on how to integrate TypeScript and [`typescript-eslint`](https://typescript-eslint.io) in your project.
 =======
 # LH1 – Sales & Marketing System (Prototype)
+=======
+# LH1 – Sales & Marketing System (Quotation Prototype)
+>>>>>>> cad649982e923a90447d00cfd91c7d10b9c79d0b
 
-This is the first prototype (LH1) of the Sales & Marketing system.
-It focuses on the quotation module.
+This project is **LH1**, the first prototype of the Sales & Marketing system.  
+It focuses on building a **quotation module** with automatic calculations based on country, province, and tax rules.
 
-Features:
-- Country and Province selection
-- Automatic tax calculation
-- Automatic subtotal and total calculation
+This prototype represents **step 1** of the system and is intended for planning, validation, and future extension.
 
-Tech stack:
-- React
-- JavaScript
-- CSS
+---
 
+## Features
 
-Deployment:
-- Vercel
+- Country selection (currently Canada)
+- Province selection (e.g. Quebec)
+- Automatic tax calculation based on province
+- Dynamic quotation table
+- Automatic subtotal calculation
+- Automatic total calculation (including tax)
+- Add / remove quotation rows
+- Real-time updates without page reload
+
+---
+
+## Tech Stack
+
+- **React**
+- **Vite**
+- **JavaScript**
+- **CSS**
+
+---
+
+## Project Structure
 
 >>>>>>> bb32e65b66604903078ce245558e5d3a853ae02f
