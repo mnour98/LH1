@@ -412,11 +412,7 @@ export default function App() {
         </div>
       </section>
 
-      <footer className="footer">
-        <span className="muted">
-          Tip: After edits run git add/commit/push — Vercel updates automatically.
-        </span>
-      </footer>
+
     </div>
   );
 }
