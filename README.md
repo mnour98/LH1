@@ -8,13 +8,13 @@ This prototype represents **step 1** of the system and is intended for **plannin
 
 ---
 
-## 🌐 Live Demo
+##  Live Demo
 
-👉 https://lh-1-phi.vercel.app
+ https://lh-1-phi.vercel.app
 
 ---
 
-## ✨ Features
+##  Features
 
 - Country selection (currently Canada)
 - Province selection (e.g. Quebec)
@@ -28,7 +28,7 @@ This prototype represents **step 1** of the system and is intended for **plannin
 
 ---
 
-## 🛠 Tech Stack
+##  Tech Stack
 
 - **React**
 - **Vite**
@@ -37,7 +37,7 @@ This prototype represents **step 1** of the system and is intended for **plannin
 
 ---
 
-## 🚀 Run Locally
+##  Run Locally
 
 Follow these steps to run the project on your machine:
 
