@@ -14,14 +14,39 @@
   --shadow: 0 10px 30px rgba(17, 24, 39, 0.06);
 }
 
-/* Page layout */
+/* =========================
+   Base reset & typography
+========================= */
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--text);
+  font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* =========================
+   Page layout
+========================= */
+
 .page {
   max-width: 1200px;
   margin: 28px auto;
   padding: 0 18px 40px;
 }
 
-/* Top bar */
+/* =========================
+   Top bar
+========================= */
+
 .topbar {
   display: flex;
   align-items: center;
@@ -58,7 +83,10 @@ h1 {
   margin: 6px 0 0;
 }
 
-/* Badge (Tax Rate) */
+/* =========================
+   Badge (Tax Rate)
+========================= */
+
 .badge {
   background: var(--primary-soft);
   border: 1px solid rgba(177, 37, 42, 0.25);
@@ -80,7 +108,10 @@ h1 {
   color: var(--primary);
 }
 
-/* Cards */
+/* =========================
+   Cards
+========================= */
+
 .card {
   background: var(--card);
   border: 1px solid var(--border);
@@ -104,7 +135,10 @@ h1 {
   margin-bottom: 10px;
 }
 
-/* Grids */
+/* =========================
+   Grids
+========================= */
+
 .grid2 {
   display: grid;
   grid-template-columns: 1fr 1fr;
@@ -128,7 +162,6 @@ h1 {
     text-align: left;
   }
 
-  /* Optional: shrink logo on mobile */
   .logo {
     height: 44px;
   }
@@ -138,7 +171,27 @@ h1 {
   }
 }
 
-/* Form fields */
+/* Top header responsive */
+@media (max-width: 900px) {
+  .topbar {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .topActions {
+    flex-wrap: wrap;
+    justify-content: flex-end;
+  }
+
+  .badge {
+    min-width: auto;
+  }
+}
+
+/* =========================
+   Form fields
+========================= */
+
 .field span {
   display: block;
   font-size: 12px;
@@ -152,7 +205,7 @@ h1 {
   border: 1px solid var(--border);
   background: #ffffff;
   color: var(--text);
-  padding: 10px 10px;
+  padding: 10px;
   border-radius: 8px;
   outline: none;
 }
@@ -170,7 +223,10 @@ h1 {
   margin-top: 6px;
 }
 
-/* Primary button (Add line) */
+/* =========================
+   Buttons
+========================= */
+
 .btn {
   background: var(--primary);
   color: white;
@@ -185,7 +241,53 @@ h1 {
   background: #9e1f23;
 }
 
-/* Table */
+.iconBtn {
+  background: transparent;
+  border: 1px solid var(--border);
+  color: var(--primary);
+  border-radius: 6px;
+  padding: 6px 10px;
+  cursor: pointer;
+  font-weight: 600;
+}
+
+.iconBtn:hover {
+  background: rgba(177, 37, 42, 0.06);
+}
+
+/* Focus accessibility */
+.btn:focus-visible,
+.iconBtn:focus-visible,
+.termsLink:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 3px rgba(177, 37, 42, 0.18);
+}
+
+/* Smooth feel */
+.field input,
+.field select,
+.btn,
+.iconBtn {
+  transition: border-color 0.15s ease, box-shadow 0.15s ease,
+    background 0.15s ease, transform 0.02s ease;
+}
+
+.btn:active,
+.iconBtn:active {
+  transform: translateY(1px);
+}
+
+/* Top right actions */
+.topActions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+/* =========================
+   Table
+========================= */
+
 .tableWrap {
   overflow: auto;
   border: 1px solid var(--border);
@@ -213,13 +315,22 @@ h1 {
   background: #fbf9f7;
 }
 
+.table tbody tr:hover {
+  background: #fbf9f7;
+}
+
 .table td input {
   width: 100%;
   border: 1px solid var(--border);
   background: #ffffff;
   color: var(--text);
-  padding: 8px 8px;
+  padding: 8px;
   border-radius: 8px;
+}
+
+/* Numeric alignment */
+.table td.num input {
+  text-align: right;
 }
 
 .num {
@@ -235,22 +346,10 @@ h1 {
   font-weight: 700;
 }
 
-/* Remove button */
-.iconBtn {
-  background: transparent;
-  border: 1px solid var(--border);
-  color: var(--primary);
-  border-radius: 6px;
-  padding: 6px 10px;
-  cursor: pointer;
-  font-weight: 600;
-}
+/* =========================
+   Totals section
+========================= */
 
-.iconBtn:hover {
-  background: rgba(177, 37, 42, 0.06);
-}
-
-/* Totals section */
 .totals {
   display: grid;
   grid-template-columns: 260px 1fr;
@@ -291,8 +390,284 @@ h1 {
   color: var(--primary);
 }
 
-/* Footer */
-.footer {
+/* =========================
+   Preview mode
+========================= */
+
+.previewField {
+  border: 1px solid var(--border);
+  background: #ffffff;
+  border-radius: 10px;
+  padding: 10px 12px;
+}
+
+.previewLabel {
+  font-size: 12px;
+  color: var(--muted);
+  margin-bottom: 6px;
+}
+
+.previewValue {
+  font-weight: 600;
+  color: var(--text);
+}
+
+.previewSectionTitle {
+  font-weight: 800;
+}
+
+/* Terms / Notes */
+.previewNotes {
+  margin-top: 16px;
+  line-height: 1.45;
+}
+
+.termsList {
+  margin: 8px 0 0 18px;
+  padding: 0;
+  color: var(--text);
+}
+
+.termsList li {
+  margin: 6px 0;
+}
+
+.termsLink {
+  display: inline-block;
+  margin-top: 6px;
+  color: var(--primary);
+  text-decoration: underline;
+  word-break: break-word;
+}
+
+.termsEmphasis {
+  font-weight: 800;
+  color: var(--primary);
+}
+
+.companyBlock {
   margin-top: 14px;
-  text-align: center;
+  padding-top: 10px;
+  border-top: 1px solid var(--border);
+}
+
+/* =========================
+   Toast (notifications)
+========================= */
+
+.toast {
+  position: fixed;
+  top: 18px;
+  right: 18px;
+  z-index: 9999;
+  background: #111827;
+  color: #fff;
+  padding: 10px 14px;
+  border-radius: 10px;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.18);
+  font-weight: 600;
+  font-size: 13px;
+  animation: toastIn 0.18s ease-out;
+}
+
+@keyframes toastIn {
+  from {
+    transform: translateY(-6px);
+    opacity: 0;
+  }
+  to {
+    transform: translateY(0);
+    opacity: 1;
+  }
+}
+
+/* =========================
+   NEW: Status tag (Internal Draft / Client-ready Preview)
+========================= */
+
+.statusTag {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 10px;
+  border-radius: 999px;
+  border: 1px solid var(--border);
+  font-weight: 800;
+  font-size: 12px;
+  white-space: nowrap;
+}
+
+.tagDraft {
+  background: #fbf9f7;
+  color: var(--text);
+}
+
+.tagPreview {
+  background: var(--primary-soft);
+  border-color: rgba(177, 37, 42, 0.25);
+  color: var(--primary);
+}
+
+.dot {
+  font-size: 12px;
+  line-height: 1;
+  color: var(--primary);
+}
+
+/* =========================
+   NEW: History controls (Search + Date range)
+========================= */
+
+.historyControls {
+  display: grid;
+  grid-template-columns: 1.2fr 1fr;
+  gap: 12px;
+  margin-top: 12px;
+  margin-bottom: 12px;
+}
+
+.historySearch {
+  min-width: 240px;
+}
+
+.historyDates {
+  display: grid;
+  grid-template-columns: 1fr 1fr auto;
+  gap: 10px;
+  align-items: end;
+}
+
+@media (max-width: 900px) {
+  .historyControls {
+    grid-template-columns: 1fr;
+  }
+  .historyDates {
+    grid-template-columns: 1fr 1fr;
+  }
+  .historyDates .iconBtn {
+    grid-column: 1 / -1;
+    justify-self: start;
+  }
+}
+
+/* =========================
+   NEW: Validation styles (Sponsor required)
+   IMPORTANT: your JSX should use "fieldError"
+   e.g. className={`field ${sponsorEmpty ? "fieldError" : ""}`}
+========================= */
+
+.fieldError input,
+.fieldError select {
+  border-color: rgba(177, 37, 42, 0.65) !important;
+  box-shadow: 0 0 0 3px rgba(177, 37, 42, 0.10);
+}
+
+.errorText {
+  display: block;
+  margin-top: 6px;
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--primary);
+}
+
+/* =========================
+   NEW: Print header (preview mode)
+========================= */
+
+.printHeader {
+  display: none;
+  margin-bottom: 10px;
+  padding-bottom: 10px;
+  border-bottom: 1px solid var(--border);
+}
+
+.printHeaderRow {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-end;
+  gap: 12px;
+}
+
+.printHeaderTitle {
+  font-weight: 900;
+  font-size: 18px;
+  letter-spacing: 0.2px;
+}
+
+.printHeaderRight {
+  text-align: right;
+}
+
+/* show print header only when printing */
+@media print {
+  .printHeader {
+    display: block !important;
+  }
+}
+
+/* =========================
+   NEW: Page break helper (avoid splitting terms awkwardly)
+========================= */
+
+@media print {
+  .pageBreakBefore {
+    break-before: page;
+    page-break-before: always; /* older browsers */
+  }
+}
+
+/* =========================
+   Print
+========================= */
+
+.printArea {
+  box-shadow: none;
+}
+
+@media print {
+  body {
+    background: #fff !important;
+  }
+
+  .topbar,
+  .btn,
+  .iconBtn {
+    display: none !important;
+  }
+
+  .page {
+    max-width: 100% !important;
+    margin: 0 !important;
+    padding: 0 !important;
+  }
+
+  .card {
+    border: none !important;
+    box-shadow: none !important;
+    margin: 0 !important;
+  }
+
+  .table {
+    min-width: 100% !important;
+  }
+
+  .table th,
+  .table td {
+    padding: 6px !important;
+  }
+
+  .termsLink {
+    color: #000 !important;
+    text-decoration: none !important;
+  }
+
+  .previewNotes,
+  .previewNotes p,
+  .previewNotes li {
+    font-size: 11px;
+  }
+
+  .noPrint {
+    display: none !important;
+  }
 }
