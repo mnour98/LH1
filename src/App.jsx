@@ -2,6 +2,7 @@
 import { useMemo, useRef, useState, useEffect } from "react";
 import "./App.css";
 import logo from "./assets/laboratoire_hibalogique_inc_logo.jpg";
+import html2pdf from "html2pdf.js";
 
 /**
  * Simple tax rates (adjust later if needed)
@@ -79,6 +80,13 @@ function safeISODate(val) {
   return s;
 }
 
+function sanitizeFileName(name) {
+  const s = String(name ?? "").trim();
+  if (!s) return "Customer";
+  // Remove characters invalid for Windows/macOS filenames
+  return s.replace(/[<>:"/\\|?*\x00-\x1F]/g, "").replace(/\s+/g, " ").slice(0, 80).trim() || "Customer";
+}
+
 export default function App() {
   const [quote, setQuote] = useState({
     referenceNumber: "Quote 0001-26",
@@ -127,6 +135,9 @@ export default function App() {
   // ✅ Import input
   const importRef = useRef(null);
 
+  // ✅ PDF export ref (preview area)
+  const pdfRef = useRef(null);
+
   const taxRate = useMemo(() => {
     if (quote.country !== "Canada") return 0;
     return TAX_RATES_BY_PROVINCE[quote.province] ?? 0;
@@ -141,10 +152,7 @@ export default function App() {
 
     const subtotal = lineSubtotals.reduce((a, b) => a + b, 0);
 
-    const discountPct = Math.max(
-      0,
-      Math.min(100, toNumber(quote.discountPercent))
-    );
+    const discountPct = Math.max(0, Math.min(100, toNumber(quote.discountPercent)));
     const discountAmount = subtotal * (discountPct / 100);
     const afterDiscount = Math.max(0, subtotal - discountAmount);
 
@@ -191,9 +199,7 @@ export default function App() {
 
   const updateLine = (id, field, value) => {
     setIsDirty(true);
-    setLines((prev) =>
-      prev.map((l) => (l.id === id ? { ...l, [field]: value } : l))
-    );
+    setLines((prev) => prev.map((l) => (l.id === id ? { ...l, [field]: value } : l)));
   };
 
   const addLine = () => {
@@ -203,18 +209,12 @@ export default function App() {
 
   const removeLine = (id) => {
     setIsDirty(true);
-    setLines((prev) =>
-      prev.length === 1 ? prev : prev.filter((l) => l.id !== id)
-    );
+    setLines((prev) => (prev.length === 1 ? prev : prev.filter((l) => l.id !== id)));
   };
 
   // Save "last saved" (what Load uses)
   const saveLast = (payloadQuote = quote, payloadLines = lines) => {
-    const payload = {
-      quote: payloadQuote,
-      lines: payloadLines,
-      savedAt: new Date().toISOString(),
-    };
+    const payload = { quote: payloadQuote, lines: payloadLines, savedAt: new Date().toISOString() };
     localStorage.setItem(STORAGE_KEY, JSON.stringify(payload));
   };
 
@@ -361,10 +361,7 @@ export default function App() {
     const current = history.find((h) => h.id === id);
     if (!current) return;
 
-    const newRef = window.prompt(
-      "New reference number:",
-      current.quote?.referenceNumber ?? ""
-    );
+    const newRef = window.prompt("New reference number:", current.quote?.referenceNumber ?? "");
     if (newRef == null) return;
 
     const cleaned = String(newRef).trim();
@@ -379,9 +376,7 @@ export default function App() {
     }
 
     const next = history.map((h) =>
-      h.id === id
-        ? { ...h, quote: { ...h.quote, referenceNumber: cleaned } }
-        : h
+      h.id === id ? { ...h, quote: { ...h.quote, referenceNumber: cleaned } } : h
     );
     persistHistory(next);
     showToast("Reference updated ✅");
@@ -433,16 +428,12 @@ export default function App() {
       },
     };
 
-    const blob = new Blob([JSON.stringify(payload, null, 2)], {
-      type: "application/json",
-    });
+    const blob = new Blob([JSON.stringify(payload, null, 2)], { type: "application/json" });
 
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
     a.href = url;
-    a.download = `hibalogique-quotes-backup-${new Date()
-      .toISOString()
-      .slice(0, 10)}.json`;
+    a.download = `hibalogique-quotes-backup-${new Date().toISOString().slice(0, 10)}.json`;
     document.body.appendChild(a);
     a.click();
     a.remove();
@@ -483,8 +474,6 @@ export default function App() {
     }
   };
 
-  const onPrint = () => window.print();
-
   const formatDateTime = (iso) => {
     if (!iso) return "—";
     const d = new Date(iso);
@@ -519,6 +508,38 @@ export default function App() {
 
   const textOrDash = (v) => (String(v ?? "").trim() ? v : "—");
 
+  // =========================
+  // ✅ Download PDF (no print dialog)
+  // =========================
+  const downloadPDF = async () => {
+    if (!pdfRef.current) {
+      showToast("Nothing to export. Open Preview first.");
+      return;
+    }
+
+    const sponsorName = sanitizeFileName(quote.sponsor);
+    const ref = sanitizeFileName(quote.referenceNumber);
+    const filename = `${sponsorName}-${ref}.pdf`;
+
+    try {
+      // IMPORTANT: html2pdf uses html2canvas, which renders what's on screen.
+      // Make sure you're in Preview mode for best results.
+      const opt = {
+        margin: [10, 10, 10, 10], // mm-ish; html2pdf interprets as jsPDF units
+        filename,
+        image: { type: "jpeg", quality: 0.98 },
+        html2canvas: { scale: 2, useCORS: true },
+        jsPDF: { unit: "mm", format: "a4", orientation: "portrait" },
+        pagebreak: { mode: ["css", "legacy"] },
+      };
+
+      await html2pdf().set(opt).from(pdfRef.current).save();
+      showToast("PDF downloaded ✅");
+    } catch {
+      showToast("PDF export failed.");
+    }
+  };
+
   return (
     <div className="page">
       {toast ? <div className="toast">{toast}</div> : null}
@@ -533,11 +554,7 @@ export default function App() {
         </div>
 
         <div className="topActions">
-          <div
-            className={`statusTag ${
-              mode === "preview" ? "tagPreview" : "tagDraft"
-            }`}
-          >
+          <div className={`statusTag ${mode === "preview" ? "tagPreview" : "tagDraft"}`}>
             {mode === "preview" ? "Client-ready Preview" : "Internal Draft"}
             {mode === "edit" && isDirty ? <span className="dot">●</span> : null}
           </div>
@@ -553,24 +570,16 @@ export default function App() {
           </button>
 
           {mode === "edit" ? (
-            <button
-              className="btn"
-              type="button"
-              onClick={() => setMode("preview")}
-            >
+            <button className="btn" type="button" onClick={() => setMode("preview")}>
               Preview
             </button>
           ) : (
             <>
-              <button
-                className="iconBtn"
-                type="button"
-                onClick={() => setMode("edit")}
-              >
+              <button className="iconBtn" type="button" onClick={() => setMode("edit")}>
                 Back to edit
               </button>
-              <button className="btn" type="button" onClick={onPrint}>
-                Print / Save PDF
+              <button className="btn" type="button" onClick={downloadPDF}>
+                Download PDF
               </button>
             </>
           )}
@@ -588,11 +597,7 @@ export default function App() {
           <div className="cardTitle">Saved Quotes (Internal)</div>
 
           <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
-            <button
-              className="iconBtn"
-              type="button"
-              onClick={() => setShowHistory((v) => !v)}
-            >
+            <button className="iconBtn" type="button" onClick={() => setShowHistory((v) => !v)}>
               {showHistory ? "Hide" : "Show"}
             </button>
 
@@ -612,12 +617,7 @@ export default function App() {
               onChange={(e) => importJSONFile(e.target.files?.[0])}
             />
 
-            <button
-              className="iconBtn"
-              type="button"
-              onClick={clearHistory}
-              title="Delete all saved history"
-            >
+            <button className="iconBtn" type="button" onClick={clearHistory} title="Delete all saved history">
               Clear all
             </button>
           </div>
@@ -641,21 +641,11 @@ export default function App() {
               <div className="historyDates">
                 <label className="field">
                   <span>From</span>
-                  <input
-                    type="date"
-                    value={filterFrom}
-                    onChange={(e) =>
-                      setFilterFrom(safeISODate(e.target.value))
-                    }
-                  />
+                  <input type="date" value={filterFrom} onChange={(e) => setFilterFrom(safeISODate(e.target.value))} />
                 </label>
                 <label className="field">
                   <span>To</span>
-                  <input
-                    type="date"
-                    value={filterTo}
-                    onChange={(e) => setFilterTo(safeISODate(e.target.value))}
-                  />
+                  <input type="date" value={filterTo} onChange={(e) => setFilterTo(safeISODate(e.target.value))} />
                 </label>
 
                 <button
@@ -695,38 +685,19 @@ export default function App() {
                         <td className="num strong">{formatMoney(h.total)}</td>
                         <td>{formatDateTime(h.savedAt)}</td>
                         <td className="actions">
-                          <button
-                            className="iconBtn"
-                            type="button"
-                            onClick={() => openFromHistory(h)}
-                            style={{ marginRight: 8 }}
-                          >
+                          <button className="iconBtn" type="button" onClick={() => openFromHistory(h)} style={{ marginRight: 8 }}>
                             Open
                           </button>
 
-                          <button
-                            className="iconBtn"
-                            type="button"
-                            onClick={() => duplicateFromHistory(h)}
-                            style={{ marginRight: 8 }}
-                          >
+                          <button className="iconBtn" type="button" onClick={() => duplicateFromHistory(h)} style={{ marginRight: 8 }}>
                             Duplicate
                           </button>
 
-                          <button
-                            className="iconBtn"
-                            type="button"
-                            onClick={() => renameReferenceInHistory(h.id)}
-                            style={{ marginRight: 8 }}
-                          >
+                          <button className="iconBtn" type="button" onClick={() => renameReferenceInHistory(h.id)} style={{ marginRight: 8 }}>
                             Rename
                           </button>
 
-                          <button
-                            className="iconBtn"
-                            type="button"
-                            onClick={() => deleteFromHistory(h.id)}
-                          >
+                          <button className="iconBtn" type="button" onClick={() => deleteFromHistory(h.id)}>
                             Delete
                           </button>
                         </td>
@@ -750,296 +721,268 @@ export default function App() {
 
       {/* ✅ PREVIEW MODE */}
       {mode === "preview" ? (
-        <section className="card printArea">
-          {/* ✅ Print-only header */}
-          <div className="printHeader">
-            <div className="printHeaderRow">
-              <div>
-                <div className="printHeaderTitle">Quotation</div>
-                <div className="muted">
-                  {textOrDash(quote.referenceNumber)} — {textOrDash(quote.date)}
+        // IMPORTANT: pdfRef wraps what we export as PDF
+        <div ref={pdfRef}>
+          <section className="card printArea">
+            {/* ✅ Print/PDF header */}
+            <div className="printHeader">
+              <div className="printHeaderRow">
+                <div>
+                  <div className="printHeaderTitle">Quotation</div>
+                  <div className="muted">
+                    {textOrDash(quote.referenceNumber)} — {textOrDash(quote.date)}
+                  </div>
+                </div>
+                <div className="printHeaderRight">
+                  <div className="muted">Sponsor</div>
+                  <div style={{ fontWeight: 800 }}>{textOrDash(quote.sponsor)}</div>
                 </div>
               </div>
-              <div className="printHeaderRight">
-                <div className="muted">Sponsor</div>
-                <div style={{ fontWeight: 800 }}>{textOrDash(quote.sponsor)}</div>
+            </div>
+
+            <div className="cardTitle">Quotation Summary</div>
+
+            <div className="grid3">
+              <div className="previewField">
+                <div className="previewLabel">Reference Number</div>
+                <div className="previewValue">{textOrDash(quote.referenceNumber)}</div>
+              </div>
+              <div className="previewField">
+                <div className="previewLabel">Date</div>
+                <div className="previewValue">{textOrDash(quote.date)}</div>
+              </div>
+              <div className="previewField">
+                <div className="previewLabel">Quotation valid till</div>
+                <div className="previewValue">{textOrDash(quote.validTill)}</div>
               </div>
             </div>
-          </div>
 
-          <div className="cardTitle">Quotation Summary</div>
-
-          <div className="grid3">
-            <div className="previewField">
-              <div className="previewLabel">Reference Number</div>
-              <div className="previewValue">
-                {textOrDash(quote.referenceNumber)}
+            <div className="grid2" style={{ marginTop: 10 }}>
+              <div className="previewField">
+                <div className="previewLabel">Sponsor</div>
+                <div className="previewValue">{textOrDash(quote.sponsor)}</div>
+              </div>
+              <div className="previewField">
+                <div className="previewLabel">Sponsor’s Address</div>
+                <div className="previewValue">{textOrDash(quote.address)}</div>
               </div>
             </div>
-            <div className="previewField">
-              <div className="previewLabel">Date</div>
-              <div className="previewValue">{textOrDash(quote.date)}</div>
-            </div>
-            <div className="previewField">
-              <div className="previewLabel">Quotation valid till</div>
-              <div className="previewValue">{textOrDash(quote.validTill)}</div>
-            </div>
-          </div>
 
-          <div className="grid2" style={{ marginTop: 10 }}>
-            <div className="previewField">
-              <div className="previewLabel">Sponsor</div>
-              <div className="previewValue">{textOrDash(quote.sponsor)}</div>
-            </div>
-            <div className="previewField">
-              <div className="previewLabel">Sponsor’s Address</div>
-              <div className="previewValue">{textOrDash(quote.address)}</div>
-            </div>
-          </div>
-
-          <div className="grid3" style={{ marginTop: 10 }}>
-            <div className="previewField">
-              <div className="previewLabel">Phone Number</div>
-              <div className="previewValue">{textOrDash(quote.phone)}</div>
-            </div>
-            <div className="previewField">
-              <div className="previewLabel">Email</div>
-              <div className="previewValue">{textOrDash(quote.email)}</div>
-            </div>
-            <div className="previewField">
-              <div className="previewLabel">Contact Information</div>
-              <div className="previewValue">
-                {textOrDash(quote.contactInformation)}
+            <div className="grid3" style={{ marginTop: 10 }}>
+              <div className="previewField">
+                <div className="previewLabel">Phone Number</div>
+                <div className="previewValue">{textOrDash(quote.phone)}</div>
+              </div>
+              <div className="previewField">
+                <div className="previewLabel">Email</div>
+                <div className="previewValue">{textOrDash(quote.email)}</div>
+              </div>
+              <div className="previewField">
+                <div className="previewLabel">Contact Information</div>
+                <div className="previewValue">{textOrDash(quote.contactInformation)}</div>
               </div>
             </div>
-          </div>
 
-          <div className="tableWrap" style={{ marginTop: 14 }}>
-            <table className="table">
-              <thead>
-                <tr>
-                  <th>Type of Test</th>
-                  <th>Description</th>
-                  <th>Panel</th>
-                  <th className="num">Time (Days)</th>
-                  <th className="num">Unit Price (CAD)</th>
-                  <th className="num">Number of Samples</th>
-                  <th className="num">Subtotal</th>
-                </tr>
-              </thead>
-              <tbody>
-                {lines.map((l, idx) => (
-                  <tr key={l.id}>
-                    <td>{textOrDash(l.typeOfTest)}</td>
-                    <td>{textOrDash(l.description)}</td>
-                    <td>{textOrDash(l.panel)}</td>
-                    <td className="num">{textOrDash(l.timeDays)}</td>
-                    <td className="num">{formatMoney(l.pricePerUnit)}</td>
-                    <td className="num">{textOrDash(l.numSamples)}</td>
-                    <td className="num strong">
-                      {formatMoney(computed.lineSubtotals[idx])}
-                    </td>
+            <div className="tableWrap" style={{ marginTop: 14 }}>
+              <table className="table">
+                <thead>
+                  <tr>
+                    <th>Type of Test</th>
+                    <th>Description</th>
+                    <th>Panel</th>
+                    <th className="num">Time (Days)</th>
+                    <th className="num">Unit Price (CAD)</th>
+                    <th className="num">Number of Samples</th>
+                    <th className="num">Subtotal</th>
                   </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+                </thead>
+                <tbody>
+                  {lines.map((l, idx) => (
+                    <tr key={l.id}>
+                      <td>{textOrDash(l.typeOfTest)}</td>
+                      <td>{textOrDash(l.description)}</td>
+                      <td>{textOrDash(l.panel)}</td>
+                      <td className="num">{textOrDash(l.timeDays)}</td>
+                      <td className="num">{formatMoney(l.pricePerUnit)}</td>
+                      <td className="num">{textOrDash(l.numSamples)}</td>
+                      <td className="num strong">{formatMoney(computed.lineSubtotals[idx])}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
 
-          <div className="totals" style={{ marginTop: 14 }}>
-            <div className="previewField">
-              <div className="previewLabel">Discount (%)</div>
-              <div className="previewValue">
-                {textOrDash(quote.discountPercent)}
+            <div className="totals" style={{ marginTop: 14 }}>
+              <div className="previewField">
+                <div className="previewLabel">Discount (%)</div>
+                <div className="previewValue">{textOrDash(quote.discountPercent)}</div>
+              </div>
+
+              <div className="totalsBox">
+                <div className="totalRow">
+                  <span>Subtotal</span>
+                  <span>{formatMoney(computed.subtotal)}</span>
+                </div>
+                <div className="totalRow">
+                  <span>Discount</span>
+                  <span>- {formatMoney(computed.discountAmount)}</span>
+                </div>
+                <div className="totalRow">
+                  <span>Subtotal after discount</span>
+                  <span>{formatMoney(computed.afterDiscount)}</span>
+                </div>
+                <div className="totalRow">
+                  <span>Taxes ({(taxRate * 100).toFixed(3)}%)</span>
+                  <span>{formatMoney(computed.taxes)}</span>
+                </div>
+                <div className="totalRow grand">
+                  <span>Total</span>
+                  <span>{formatMoney(computed.total)}</span>
+                </div>
               </div>
             </div>
 
-            <div className="totalsBox">
-              <div className="totalRow">
-                <span>Subtotal</span>
-                <span>{formatMoney(computed.subtotal)}</span>
+            {/* OFFICIAL TEXT */}
+            <div className="previewNotes pageBreakBefore" style={{ marginTop: 16 }}>
+              <div className="previewSectionTitle">Study Tentative Schedule</div>
+              <p className="muted" style={{ marginTop: 6 }}>
+                (To be confirmed upon sample registration and scheduling agreement.)
+              </p>
+
+              <div className="previewSectionTitle" style={{ marginTop: 14 }}>
+                Shipping Instructions
               </div>
-              <div className="totalRow">
-                <span>Discount</span>
-                <span>- {formatMoney(computed.discountAmount)}</span>
+              <p style={{ marginTop: 8, fontWeight: 700 }}>For Shipments outside Canada:</p>
+              <p className="muted" style={{ marginTop: 6 }}>
+                For customs clearance services, kindly provide the commercial invoice with the following:
+              </p>
+              <ul className="termsList">
+                <li>a commercial value of 1$</li>
+                <li>the country of manufacture</li>
+              </ul>
+
+              <div className="previewSectionTitle" style={{ marginTop: 14 }}>
+                Sample Registration Process
               </div>
-              <div className="totalRow">
-                <span>Subtotal after discount</span>
-                <span>{formatMoney(computed.afterDiscount)}</span>
+              <p className="muted" style={{ marginTop: 6 }}>
+                Test scheduling for GCP studies must be agreed upon before commencement and documented in
+                the study program. The client should provide an estimated sample shipping date for study
+                planning.
+              </p>
+              <p className="muted" style={{ marginTop: 10 }}>
+                A Sample Submission Form (SSF) must be completed, signed, and submitted electronically to
+                preregister the sample using the following form:
+              </p>
+              <a className="termsLink" href="https://forms.gle/wy2uSgRojM6XdvJh6" target="_blank" rel="noreferrer">
+                https://forms.gle/wy2uSgRojM6XdvJh6
+              </a>
+              <p className="muted" style={{ marginTop: 10 }}>
+                Failure to submit the SSF may delay study commencement. Upon completion of the study, the
+                customer will receive the official test report electronically along with related raw data,
+                if requested and agreed upon.
+              </p>
+
+              <div className="previewSectionTitle" style={{ marginTop: 14 }}>
+                Payment Terms &amp; Conditions
               </div>
-              <div className="totalRow">
-                <span>Taxes ({(taxRate * 100).toFixed(3)}%)</span>
-                <span>{formatMoney(computed.taxes)}</span>
+              <p className="muted" style={{ marginTop: 6 }}>
+                The initial invoice must be paid immediately at a rate of 50%. The remaining balance
+                indicated on the second invoice must be settled before results are communicated or as per
+                the terms agreed upon with the account coordinator.
+              </p>
+              <p className="muted" style={{ marginTop: 8 }}>
+                Any delay in the advance payment will consequently delay service provision. Lab. Hibalogique
+                Inc. does not impose a minimum order requirement.
+              </p>
+              <p className="termsEmphasis" style={{ marginTop: 10 }}>
+                Delays in settling the balance will result in delays in the delivery of the results report.
+              </p>
+              <p className="muted" style={{ marginTop: 8 }}>
+                All correspondence charges are the responsibility of the payer.
+              </p>
+
+              <div className="previewSectionTitle" style={{ marginTop: 14 }}>
+                Purchase Order
               </div>
-              <div className="totalRow grand">
-                <span>Total</span>
-                <span>{formatMoney(computed.total)}</span>
+              <p className="muted" style={{ marginTop: 6 }}>
+                Should a purchase order be requisite from the customer prior to invoice issuance, Lab.
+                Hibalogique Inc. must receive the purchase order within 10 Working Business Days. Failure to
+                do so will result in the issuance of the invoice pending receipt of the purchase order.
+              </p>
+
+              <div className="previewSectionTitle" style={{ marginTop: 14 }}>
+                Rush Fees
+              </div>
+              <p className="muted" style={{ marginTop: 6 }}>
+                In instances where expedited delivery of results or execution of a study is necessary, an
+                additional fee ranging between 30% will be applied.
+              </p>
+
+              <div className="previewSectionTitle" style={{ marginTop: 14 }}>
+                Cancellation Fees
+              </div>
+              <p className="muted" style={{ marginTop: 6 }}>
+                These apply when a test has been approved and the customer opts to cancel the order after
+                more than 5 working days from test approval. Fees are based on the total test cost and vary
+                according to the time of cancellation in relation to the test start date.
+              </p>
+
+              <div className="previewSectionTitle" style={{ marginTop: 14 }}>
+                Additional Notes
+              </div>
+              <ul className="termsList">
+                <li>The quoted price excludes charges for further repeats of the test.</li>
+                <li>
+                  The quotation provides a concise overview of services offered by Lab. Hibalogique Inc.,
+                  including a brief description and identification code for each test/analysis.
+                </li>
+                <li>Lead time changes may occur during holidays; clients will be notified accordingly.</li>
+                <li>Documentation will be issued in English; additional costs apply for reports in other languages.</li>
+                <li>Additional copies of the final report or analytical certificates incur extra charges.</li>
+                <li>Correction of reports incurs an additional $80 fee.</li>
+                <li>
+                  Samples and residual materials are stored for 3 months post-test completion; further storage
+                  or return requests are subject to additional charges.
+                </li>
+                <li>
+                  In case of non-conformity, Lab. Hibalogique Inc. will conduct a formal investigation and notify
+                  the client accordingly. Any adjustments will be assessed after completion of the original terms.
+                </li>
+                <li>
+                  Customer confidentiality is maintained; test reports will not be disclosed to third parties
+                  without written consent.
+                </li>
+                <li>
+                  Clients must sign and return the contract, along with providing a copy to Lab. Hibalogique Inc.
+                  for record-keeping.
+                </li>
+                <li>
+                  Late fees will be charged in case of delays in payments. The charges are 10% in case of one
+                  month of delay, and 20% in case of two months in delays.
+                </li>
+              </ul>
+
+              <div className="previewSectionTitle" style={{ marginTop: 14 }}>
+                Acceptance
+              </div>
+
+              {/* ✅ Name auto-filled */}
+              <p style={{ marginTop: 8 }}>
+                I, <span style={{ fontWeight: 800 }}>{textOrDash(quote.sponsor)}</span>, accept the above offer.
+              </p>
+
+              <p style={{ marginTop: 6 }}>Signature: _________________________</p>
+
+              <div className="companyBlock">
+                <div style={{ fontWeight: 800, marginTop: 14 }}>LABORATOIRE HIBALOGIQUE INC.</div>
+                <div className="muted" style={{ marginTop: 6 }}>Montreal, Quebec, Canada</div>
+                <div className="muted">Phone: +1 (514) 431-9776</div>
+                <div className="muted">Email: info@labhibalogique.com</div>
+                <div className="muted">Website: www.labhibalogique.org</div>
               </div>
             </div>
-          </div>
-
-          {/* OFFICIAL TEXT */}
-          <div className="previewNotes pageBreakBefore" style={{ marginTop: 16 }}>
-            <div className="previewSectionTitle">Study Tentative Schedule</div>
-            <p className="muted" style={{ marginTop: 6 }}>
-              (To be confirmed upon sample registration and scheduling agreement.)
-            </p>
-
-            <div className="previewSectionTitle" style={{ marginTop: 14 }}>
-              Shipping Instructions
-            </div>
-            <p style={{ marginTop: 8, fontWeight: 700 }}>
-              For Shipments outside Canada:
-            </p>
-            <p className="muted" style={{ marginTop: 6 }}>
-              For customs clearance services, kindly provide the commercial invoice
-              with the following:
-            </p>
-            <ul className="termsList">
-              <li>a commercial value of 1$</li>
-              <li>the country of manufacture</li>
-            </ul>
-
-            <div className="previewSectionTitle" style={{ marginTop: 14 }}>
-              Sample Registration Process
-            </div>
-            <p className="muted" style={{ marginTop: 6 }}>
-              Test scheduling for GCP studies must be agreed upon before
-              commencement and documented in the study program. The client should
-              provide an estimated sample shipping date for study planning.
-            </p>
-            <p className="muted" style={{ marginTop: 10 }}>
-              A Sample Submission Form (SSF) must be completed, signed, and
-              submitted electronically to preregister the sample using the
-              following form:
-            </p>
-            <a
-              className="termsLink"
-              href="https://forms.gle/wy2uSgRojM6XdvJh6"
-              target="_blank"
-              rel="noreferrer"
-            >
-              https://forms.gle/wy2uSgRojM6XdvJh6
-            </a>
-            <p className="muted" style={{ marginTop: 10 }}>
-              Failure to submit the SSF may delay study commencement. Upon
-              completion of the study, the customer will receive the official
-              test report electronically along with related raw data, if
-              requested and agreed upon.
-            </p>
-
-            <div className="previewSectionTitle" style={{ marginTop: 14 }}>
-              Payment Terms &amp; Conditions
-            </div>
-            <p className="muted" style={{ marginTop: 6 }}>
-              The initial invoice must be paid immediately at a rate of 50%. The
-              remaining balance indicated on the second invoice must be settled
-              before results are communicated or as per the terms agreed upon
-              with the account coordinator.
-            </p>
-            <p className="muted" style={{ marginTop: 8 }}>
-              Any delay in the advance payment will consequently delay service
-              provision. Lab. Hibalogique Inc. does not impose a minimum order
-              requirement.
-            </p>
-            <p className="termsEmphasis" style={{ marginTop: 10 }}>
-              Delays in settling the balance will result in delays in the
-              delivery of the results report.
-            </p>
-            <p className="muted" style={{ marginTop: 8 }}>
-              All correspondence charges are the responsibility of the payer.
-            </p>
-
-            <div className="previewSectionTitle" style={{ marginTop: 14 }}>
-              Purchase Order
-            </div>
-            <p className="muted" style={{ marginTop: 6 }}>
-              Should a purchase order be requisite from the customer prior to
-              invoice issuance, Lab. Hibalogique Inc. must receive the purchase
-              order within 10 Working Business Days. Failure to do so will
-              result in the issuance of the invoice pending receipt of the
-              purchase order.
-            </p>
-
-            <div className="previewSectionTitle" style={{ marginTop: 14 }}>
-              Rush Fees
-            </div>
-            <p className="muted" style={{ marginTop: 6 }}>
-              In instances where expedited delivery of results or execution of a
-              study is necessary, an additional fee ranging between 30% will be
-              applied.
-            </p>
-
-            <div className="previewSectionTitle" style={{ marginTop: 14 }}>
-              Cancellation Fees
-            </div>
-            <p className="muted" style={{ marginTop: 6 }}>
-              These apply when a test has been approved and the customer opts to
-              cancel the order after more than 5 working days from test
-              approval. Fees are based on the total test cost and vary according
-              to the time of cancellation in relation to the test start date.
-            </p>
-
-            <div className="previewSectionTitle" style={{ marginTop: 14 }}>
-              Additional Notes
-            </div>
-            <ul className="termsList">
-              <li>The quoted price excludes charges for further repeats of the test.</li>
-              <li>
-                The quotation provides a concise overview of services offered by
-                Lab. Hibalogique Inc., including a brief description and
-                identification code for each test/analysis.
-              </li>
-              <li>Lead time changes may occur during holidays; clients will be notified accordingly.</li>
-              <li>Documentation will be issued in English; additional costs apply for reports in other languages.</li>
-              <li>Additional copies of the final report or analytical certificates incur extra charges.</li>
-              <li>Correction of reports incurs an additional $80 fee.</li>
-              <li>
-                Samples and residual materials are stored for 3 months post-test
-                completion; further storage or return requests are subject to
-                additional charges.
-              </li>
-              <li>
-                In case of non-conformity, Lab. Hibalogique Inc. will conduct a
-                formal investigation and notify the client accordingly. Any
-                adjustments will be assessed after completion of the original
-                terms.
-              </li>
-              <li>
-                Customer confidentiality is maintained; test reports will not be
-                disclosed to third parties without written consent.
-              </li>
-              <li>
-                Clients must sign and return the contract, along with providing
-                a copy to Lab. Hibalogique Inc. for record-keeping.
-              </li>
-              <li>
-                Late fees will be charged in case of delays in payments. The
-                charges are 10% in case of one month of delay, and 20% in case
-                of two months in delays.
-              </li>
-            </ul>
-
-            <div className="previewSectionTitle" style={{ marginTop: 14 }}>
-              Acceptance
-            </div>
-            <p style={{ marginTop: 8 }}>
-              I, ______________________________, accept the above offer.
-            </p>
-            <p style={{ marginTop: 6 }}>Signature: _________________________</p>
-
-            <div className="companyBlock">
-              <div style={{ fontWeight: 800, marginTop: 14 }}>
-                LABORATOIRE HIBALOGIQUE INC.
-              </div>
-              <div className="muted" style={{ marginTop: 6 }}>
-                Montreal, Quebec, Canada
-              </div>
-              <div className="muted">Phone: +1 (514) 431-9776</div>
-              <div className="muted">Email: info@labhibalogique.com</div>
-              <div className="muted">Website: www.labhibalogique.org</div>
-            </div>
-          </div>
-        </section>
+          </section>
+        </div>
       ) : (
         /* ✅ EDIT MODE */
         <>
@@ -1051,85 +994,54 @@ export default function App() {
                 <span>Reference Number</span>
                 <input
                   value={quote.referenceNumber}
-                  onChange={(e) =>
-                    updateQuote("referenceNumber", e.target.value)
-                  }
+                  onChange={(e) => updateQuote("referenceNumber", e.target.value)}
                   placeholder="Quote 0001-26"
                 />
                 <small className="hint">
-                  Note: when you press <b>Save</b>, the app will auto-generate a
-                  new reference.
+                  Note: when you press <b>Save</b>, the app will auto-generate a new reference.
                 </small>
               </label>
 
               <label className="field">
                 <span>Date</span>
-                <input
-                  type="date"
-                  value={quote.date}
-                  onChange={(e) => updateQuote("date", e.target.value)}
-                />
+                <input type="date" value={quote.date} onChange={(e) => updateQuote("date", e.target.value)} />
               </label>
 
               <label className="field">
                 <span>Quotation valid till</span>
-                <input
-                  type="date"
-                  value={quote.validTill}
-                  onChange={(e) => updateQuote("validTill", e.target.value)}
-                />
+                <input type="date" value={quote.validTill} onChange={(e) => updateQuote("validTill", e.target.value)} />
               </label>
             </div>
 
             <div className="grid2">
               <label className={`field ${sponsorEmpty ? "fieldError" : ""}`}>
                 <span>Sponsor *</span>
-                <input
-                  value={quote.sponsor}
-                  onChange={(e) => updateQuote("sponsor", e.target.value)}
-                  placeholder="Sponsor name"
-                />
-                {sponsorEmpty ? (
-                  <small className="errorText">Sponsor is required.</small>
-                ) : null}
+                <input value={quote.sponsor} onChange={(e) => updateQuote("sponsor", e.target.value)} placeholder="Sponsor name" />
+                {sponsorEmpty ? <small className="errorText">Sponsor is required.</small> : null}
               </label>
 
               <label className="field">
                 <span>Address</span>
-                <input
-                  value={quote.address}
-                  onChange={(e) => updateQuote("address", e.target.value)}
-                  placeholder="Full address"
-                />
+                <input value={quote.address} onChange={(e) => updateQuote("address", e.target.value)} placeholder="Full address" />
               </label>
             </div>
 
             <div className="grid3">
               <label className="field">
                 <span>Phone</span>
-                <input
-                  value={quote.phone}
-                  onChange={(e) => updateQuote("phone", e.target.value)}
-                  placeholder="+1 (___) ___-____"
-                />
+                <input value={quote.phone} onChange={(e) => updateQuote("phone", e.target.value)} placeholder="+1 (___) ___-____" />
               </label>
 
               <label className="field">
                 <span>Email</span>
-                <input
-                  value={quote.email}
-                  onChange={(e) => updateQuote("email", e.target.value)}
-                  placeholder="name@email.com"
-                />
+                <input value={quote.email} onChange={(e) => updateQuote("email", e.target.value)} placeholder="name@email.com" />
               </label>
 
               <label className="field">
                 <span>Contact Information</span>
                 <input
                   value={quote.contactInformation}
-                  onChange={(e) =>
-                    updateQuote("contactInformation", e.target.value)
-                  }
+                  onChange={(e) => updateQuote("contactInformation", e.target.value)}
                   placeholder="Contact person / notes"
                 />
               </label>
@@ -1138,10 +1050,7 @@ export default function App() {
             <div className="grid3">
               <label className="field">
                 <span>Country</span>
-                <select
-                  value={quote.country}
-                  onChange={(e) => updateQuote("country", e.target.value)}
-                >
+                <select value={quote.country} onChange={(e) => updateQuote("country", e.target.value)}>
                   <option value="Canada">Canada</option>
                   <option value="Other">Other</option>
                 </select>
@@ -1154,11 +1063,7 @@ export default function App() {
                   value={quote.province}
                   onChange={(e) => updateQuote("province", e.target.value)}
                   disabled={quote.country !== "Canada"}
-                  title={
-                    quote.country !== "Canada"
-                      ? "Province disabled unless Country is Canada"
-                      : ""
-                  }
+                  title={quote.country !== "Canada" ? "Province disabled unless Country is Canada" : ""}
                 >
                   {PROVINCES.map((p) => (
                     <option key={p.code} value={p.code}>
@@ -1204,36 +1109,24 @@ export default function App() {
                       <td>
                         <input
                           value={l.typeOfTest}
-                          onChange={(e) =>
-                            updateLine(l.id, "typeOfTest", e.target.value)
-                          }
+                          onChange={(e) => updateLine(l.id, "typeOfTest", e.target.value)}
                           placeholder="e.g. Chemistry"
                         />
                       </td>
                       <td>
                         <input
                           value={l.description}
-                          onChange={(e) =>
-                            updateLine(l.id, "description", e.target.value)
-                          }
+                          onChange={(e) => updateLine(l.id, "description", e.target.value)}
                           placeholder="e.g. Analysis details"
                         />
                       </td>
                       <td>
-                        <input
-                          value={l.panel}
-                          onChange={(e) =>
-                            updateLine(l.id, "panel", e.target.value)
-                          }
-                          placeholder="e.g. Standard"
-                        />
+                        <input value={l.panel} onChange={(e) => updateLine(l.id, "panel", e.target.value)} placeholder="e.g. Standard" />
                       </td>
                       <td className="num">
                         <input
                           value={l.timeDays}
-                          onChange={(e) =>
-                            updateLine(l.id, "timeDays", e.target.value)
-                          }
+                          onChange={(e) => updateLine(l.id, "timeDays", e.target.value)}
                           type="number"
                           min="0"
                           step="1"
@@ -1244,9 +1137,7 @@ export default function App() {
                       <td className="num">
                         <input
                           value={l.pricePerUnit}
-                          onChange={(e) =>
-                            updateLine(l.id, "pricePerUnit", e.target.value)
-                          }
+                          onChange={(e) => updateLine(l.id, "pricePerUnit", e.target.value)}
                           type="number"
                           min="0"
                           step="0.01"
@@ -1257,9 +1148,7 @@ export default function App() {
                       <td className="num">
                         <input
                           value={l.numSamples}
-                          onChange={(e) =>
-                            updateLine(l.id, "numSamples", e.target.value)
-                          }
+                          onChange={(e) => updateLine(l.id, "numSamples", e.target.value)}
                           type="number"
                           min="0"
                           step="1"
@@ -1267,15 +1156,9 @@ export default function App() {
                           placeholder="0"
                         />
                       </td>
-                      <td className="num strong">
-                        {formatMoney(computed.lineSubtotals[idx])}
-                      </td>
+                      <td className="num strong">{formatMoney(computed.lineSubtotals[idx])}</td>
                       <td className="actions">
-                        <button
-                          className="iconBtn"
-                          type="button"
-                          onClick={() => removeLine(l.id)}
-                        >
+                        <button className="iconBtn" type="button" onClick={() => removeLine(l.id)}>
                           Remove
                         </button>
                       </td>
@@ -1290,9 +1173,7 @@ export default function App() {
                 <span>Discount (%)</span>
                 <input
                   value={quote.discountPercent}
-                  onChange={(e) =>
-                    updateQuote("discountPercent", e.target.value)
-                  }
+                  onChange={(e) => updateQuote("discountPercent", e.target.value)}
                   type="number"
                   min="0"
                   max="100"
