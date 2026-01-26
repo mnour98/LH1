@@ -86,12 +86,12 @@ https://lh-1-phi.vercel.app
 ## Application Structure
 
 src/
-├── App.jsx # Main quotation logic and UI
-├── App.css # Design system and layout
-├── main.jsx # Application entry point
-├── index.css # Global styles
-└── assets/
-└── laboratoire_hibalogique_inc_logo.jpg
+- App.jsx # Main quotation logic and UI
+- App.css # Design system and layout
+- main.jsx # Application entry point
+- index.css # Global styles
+- assets/
+- laboratoire_hibalogique_inc_logo.jpg
 
 
 
